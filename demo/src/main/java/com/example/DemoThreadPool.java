@@ -6,7 +6,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import com.example.Exception.SizeException;
 import com.example.Exception.StatusException;
 import com.example.Interfaces.ExecutorService;
 import com.example.Interfaces.RejectedExecutorHandler;
@@ -33,6 +32,9 @@ public class DemoThreadPool implements ExecutorService {
     // 拒绝策略
     private RejectedExecutorHandler rejectedHandler;
 
+    // 核心线程是否超时
+    private boolean isCoreThreadTimeout = false;
+
 
     public BlockingQueue<Runnable> getWorkQueue() {
         return taskQueue;
@@ -42,17 +44,18 @@ public class DemoThreadPool implements ExecutorService {
         return taskQueue.size();
     }
 
-    public DemoThreadPool(int initThreadNum, int maxCoreThread, int maxThread, int taskQueueSize, RejectedExecutorHandler rejectedHandler) {
+    public DemoThreadPool(int initThreadNum, int maxCoreThread, int maxThread, int taskQueueSize, RejectedExecutorHandler rejectedHandler, boolean isCoreThreadTimeout) {
         this.initThreadNum = initThreadNum;
         this.maxCoreThread = maxCoreThread;
         this.maxThread = maxThread;
         this.rejectedHandler = rejectedHandler;
+        this.isCoreThreadTimeout = isCoreThreadTimeout;
 
         taskQueue = new LinkedBlockingQueue<>(taskQueueSize);
         workers = new ArrayList<>(initThreadNum);
 
         for (int i = 0; i < this.initThreadNum; i++) {
-            var worker = new Worker(taskQueue);
+            var worker = new Worker(taskQueue, null);
             workers.add(worker);
             worker.start();
         }
@@ -101,10 +104,10 @@ public class DemoThreadPool implements ExecutorService {
             if (workers.size() < maxThread) {
                 
                 synchronized (workers) {
-                    var worker = new Worker(taskQueue);
+                    if (workers.size() >= maxThread) continue;
+                    var worker = new Worker(taskQueue, task);
                     workers.add(worker);
                     worker.start();
-                    taskQueue.put(task);
                     return true;
                 }
 
@@ -121,17 +124,24 @@ public class DemoThreadPool implements ExecutorService {
     private class Worker extends Thread {
         // 任务队列
         private BlockingQueue<Runnable> taskQueue;
+        // 第一个任务
+        private Runnable firstTask;
         // 构造Worker
-        public Worker(BlockingQueue<Runnable> taskQueue) {
+        public Worker(BlockingQueue<Runnable> taskQueue, Runnable firstTask) {
             this.taskQueue = taskQueue;
+            this.firstTask = firstTask;
         }
 
         @Override
         public void run() {
             Runnable task = null;
             try {
-                while (!Thread.currentThread().isInterrupted() && !isStopped && (task = getTask()) != null) {
+                while (!Thread.currentThread().isInterrupted() && !isStopped && (firstTask != null ||  (task = getTask()) != null)) {
                     try {
+                        if (firstTask != null) {
+                            task = firstTask;
+                            firstTask = null;
+                        }
                         task.run();
                     } catch (Exception e) {}
                 }
@@ -144,10 +154,32 @@ public class DemoThreadPool implements ExecutorService {
 
         private Runnable getTask() {
             Runnable task = null;
-            try {
-                task = taskQueue.poll(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {}
-            return task;
+            boolean lastTimeOut = false;
+
+            for (;;) {
+                if (isStopped) {
+                    return null;
+                }
+                // 本轮次是否超时
+                boolean timeOut = isCoreThreadTimeout || workers.size() > maxCoreThread;
+
+                if (timeOut && lastTimeOut) {
+                    return null;
+                }
+
+                // 
+                try {
+                    task = timeOut ? taskQueue.poll(10, TimeUnit.SECONDS) : taskQueue.take();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    if (task != null) {
+                        return task;
+                    } else {
+                        lastTimeOut = true;
+                    }
+                }
+            }
         }
     }
 

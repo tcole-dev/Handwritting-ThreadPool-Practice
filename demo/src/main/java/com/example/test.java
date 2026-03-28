@@ -5,7 +5,7 @@ import com.example.RejectedHandler.TryAgainPolicy;
 
 public class test {
     public static void main(String[] args) {
-        ExecutorService executor = new DemoThreadPool(2, 4, 8, 10, new TryAgainPolicy());
+        ExecutorService executor = new DemoThreadPool(2, 4, 8, 10, new TryAgainPolicy(), false);
         for(int i = 0; i < 100; i++) {
             try {
                 var task = new Task(i, new Runnable() {
