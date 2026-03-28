@@ -3,7 +3,7 @@ package com.example;
 import java.util.List;
 
 public interface ExecutorService {
-    void execute(Runnable task);
+    void execute(Runnable task) throws Exception;
 
     void shutdown();
 
