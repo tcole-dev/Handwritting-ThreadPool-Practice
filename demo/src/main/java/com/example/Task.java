@@ -4,6 +4,9 @@ public class Task implements Runnable {
     private int id;
     private Runnable task;
 
+    public int getId() {
+        return id;
+    }
     public Task(int id, Runnable task) {
         this.id = id;
         this.task = task;

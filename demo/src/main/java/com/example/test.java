@@ -1,9 +1,12 @@
 package com.example;
 
+import com.example.Interfaces.ExecutorService;
+import com.example.RejectedHandler.TryAgainPolicy;
+
 public class test {
     public static void main(String[] args) {
-        ExecutorService executor = new DemoThreadPool(2, 4, 8, 10);
-        for(int i = 0; i < 20; i++) {
+        ExecutorService executor = new DemoThreadPool(2, 4, 8, 10, new TryAgainPolicy());
+        for(int i = 0; i < 100; i++) {
             try {
                 var task = new Task(i, new Runnable() {
                     public void run() {

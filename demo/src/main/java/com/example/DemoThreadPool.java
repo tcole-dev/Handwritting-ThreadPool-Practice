@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.example.Exception.SizeException;
 import com.example.Exception.StatusException;
+import com.example.Interfaces.ExecutorService;
+import com.example.Interfaces.RejectedExecutorHandler;
 
 public class DemoThreadPool implements ExecutorService {
     // 任务队列
@@ -28,11 +30,23 @@ public class DemoThreadPool implements ExecutorService {
     // 最大线程数
     private int maxThread;
 
+    // 拒绝策略
+    private RejectedExecutorHandler rejectedHandler;
 
-    public DemoThreadPool(int initThreadNum, int maxCoreThread, int maxThread, int taskQueueSize) {
+
+    public BlockingQueue<Runnable> getWorkQueue() {
+        return taskQueue;
+    }
+
+    public int getCurrentTaskNum() {
+        return taskQueue.size();
+    }
+
+    public DemoThreadPool(int initThreadNum, int maxCoreThread, int maxThread, int taskQueueSize, RejectedExecutorHandler rejectedHandler) {
         this.initThreadNum = initThreadNum;
         this.maxCoreThread = maxCoreThread;
         this.maxThread = maxThread;
+        this.rejectedHandler = rejectedHandler;
 
         taskQueue = new LinkedBlockingQueue<>(taskQueueSize);
         workers = new ArrayList<>(initThreadNum);
@@ -55,7 +69,7 @@ public class DemoThreadPool implements ExecutorService {
                     if (!addWorker(task)) continue;
                     return;
                 } else {
-                    throw new SizeException("Task Queue Fulled");
+                    rejectedHandler.rejectedExecution(task, this);
                 }
             }
             return;
